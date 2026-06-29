@@ -1,13 +1,13 @@
 (function () {
-    const postsContainer = document.getElementById('posts-container');
-    const loadingEl = document.getElementById('loading');
-    const errorEl = document.getElementById('error');
-    const refreshBtn = document.getElementById('refresh-btn');
-    const translationCache = {};
+    var postsContainer = document.getElementById('posts-container');
+    var loadingEl = document.getElementById('loading');
+    var errorEl = document.getElementById('error');
+    var refreshBtn = document.getElementById('refresh-btn');
+    var translationCache = {};
 
     function loadCache() {
         try {
-            const raw = localStorage.getItem('translation_cache');
+            var raw = localStorage.getItem('translation_cache');
             if (raw) Object.assign(translationCache, JSON.parse(raw));
         } catch (e) {}
     }
@@ -19,8 +19,8 @@
     }
 
     function getCacheKey(text) {
-        let hash = 0;
-        for (let i = 0; i < text.length; i++) {
+        var hash = 0;
+        for (var i = 0; i < text.length; i++) {
             hash = ((hash << 5) - hash) + text.charCodeAt(i);
             hash |= 0;
         }
@@ -28,24 +28,24 @@
     }
 
     function stripHtml(html) {
-        const div = document.createElement('div');
+        var div = document.createElement('div');
         div.innerHTML = html;
         return div.textContent || div.innerText || '';
     }
 
     function formatTime(dateStr) {
-        const date = new Date(dateStr);
-        const now = new Date();
-        const diff = Math.floor((now - date) / 1000);
+        var date = new Date(dateStr);
+        var now = new Date();
+        var diff = Math.floor((now - date) / 1000);
 
         if (diff < 60) return '刚刚';
         if (diff < 3600) return Math.floor(diff / 60) + '分钟前';
         if (diff < 86400) return Math.floor(diff / 3600) + '小时前';
         if (diff < 604800) return Math.floor(diff / 86400) + '天前';
 
-        const y = date.getFullYear();
-        const m = String(date.getMonth() + 1).padStart(2, '0');
-        const d = String(date.getDate()).padStart(2, '0');
+        var y = date.getFullYear();
+        var m = String(date.getMonth() + 1).padStart(2, '0');
+        var d = String(date.getDate()).padStart(2, '0');
         return y + '年' + m + '月' + d + '日';
     }
 
@@ -58,14 +58,14 @@
 
     async function translateText(text) {
         if (!text.trim()) return text;
-        const key = getCacheKey(text);
+        var key = getCacheKey(text);
         if (translationCache[key]) return translationCache[key];
 
         try {
-            const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=zh-CN&dt=t&q=' + encodeURIComponent(text);
-            const resp = await fetch(url);
-            const data = await resp.json();
-            const translated = data[0].map(function (s) { return s[0]; }).join('');
+            var url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=zh-CN&dt=t&q=' + encodeURIComponent(text);
+            var resp = await fetch(url);
+            var data = await resp.json();
+            var translated = data[0].map(function (s) { return s[0]; }).join('');
             translationCache[key] = translated;
             saveCache();
             return translated;
@@ -74,27 +74,61 @@
         }
     }
 
+    function getMediaUrl(m) {
+        if (m.local_file) {
+            var basePath = '';
+            if (window.location.pathname.indexOf('/trump-truthsocial/') !== -1) {
+                basePath = '/trump-truthsocial';
+            }
+            return basePath + '/data/' + m.local_file;
+        }
+        return m.url || m.preview_url || '';
+    }
+
+    function buildMediaHtml(media) {
+        var html = '';
+        if (media && media.length > 0) {
+            html = '<div class="post-media">';
+            media.forEach(function (m) {
+                var src = getMediaUrl(m);
+                if (!src) return;
+                if (m.type === 'video') {
+                    html += '<video controls preload="metadata"><source src="' + src + '" type="video/mp4"></video>';
+                } else {
+                    html += '<img src="' + src + '" alt="media" loading="lazy">';
+                }
+            });
+            html += '</div>';
+        }
+        return html;
+    }
+
+    function buildQuoteHtml(quote, quoteIndex) {
+        if (!quote) return '';
+        var quoteContent = stripHtml(quote.content);
+        var quoteAvatar = quote.account.avatar || '';
+        var quoteMedia = buildMediaHtml(quote.media);
+
+        return '<div class="quote-box">' +
+            '<div class="quote-header">' +
+                (quoteAvatar ? '<img class="quote-avatar" src="' + quoteAvatar + '" alt="avatar">' : '') +
+                '<span class="quote-name">' + (quote.account.display_name || quote.account.username || '') + '</span>' +
+                '<span class="quote-time">' + formatTime(quote.created_at) + '</span>' +
+            '</div>' +
+            '<div class="quote-content translated-quote" data-qindex="' + quoteIndex + '">' + quoteContent + '</div>' +
+            '<div class="quote-content original-quote" data-qindex="' + quoteIndex + '" style="display:none;">' + quote.content + '</div>' +
+            quoteMedia +
+        '</div>';
+    }
+
     function createPostCard(post, index) {
         var card = document.createElement('div');
         card.className = 'post-card';
         card.setAttribute('data-index', index);
 
         var contentText = stripHtml(post.content);
-
-        var mediaHtml = '';
-        if (post.media && post.media.length > 0) {
-            mediaHtml = '<div class="post-media">';
-            post.media.forEach(function (m) {
-                if (m.type === 'video') {
-                    mediaHtml += '<video controls preload="metadata"><source src="' + m.url + '" type="video/mp4"></video>';
-                } else {
-                    var imgUrl = m.preview_url || m.url;
-                    mediaHtml += '<img src="' + imgUrl + '" alt="' + (m.description || 'media') + '" loading="lazy">';
-                }
-            });
-            mediaHtml += '</div>';
-        }
-
+        var mediaHtml = buildMediaHtml(post.media);
+        var quoteHtml = buildQuoteHtml(post.quote, index);
         var avatarUrl = post.account.avatar || 'https://media.truthsocial.com/accounts/avatars/000/000/001/original/avatar.png';
 
         card.innerHTML =
@@ -109,6 +143,7 @@
                     '<div class="post-content translated-content" data-index="' + index + '">' + contentText + '</div>' +
                     '<div class="post-content original-content" data-index="' + index + '" style="display:none;">' + post.content + '</div>' +
                     mediaHtml +
+                    quoteHtml +
                     '<div class="post-actions">' +
                         '<button class="post-action">' +
                             '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>' +
@@ -149,6 +184,14 @@
                 var translated = await translateText(text);
                 el.textContent = translated;
             }
+            if (posts[i].quote) {
+                var quoteEl = document.querySelector('.translated-quote[data-qindex="' + i + '"]');
+                if (quoteEl) {
+                    var quoteText = stripHtml(posts[i].quote.content);
+                    var quoteTranslated = await translateText(quoteText);
+                    quoteEl.textContent = quoteTranslated;
+                }
+            }
         }
     }
 
@@ -160,6 +203,8 @@
             var index = btn.getAttribute('data-index');
             var translatedEl = document.querySelector('.translated-content[data-index="' + index + '"]');
             var originalEl = document.querySelector('.original-content[data-index="' + index + '"]');
+            var translatedQuote = document.querySelector('.translated-quote[data-qindex="' + index + '"]');
+            var originalQuote = document.querySelector('.original-quote[data-qindex="' + index + '"]');
 
             if (!translatedEl || !originalEl) return;
 
@@ -168,10 +213,14 @@
             if (isShowingOriginal) {
                 originalEl.style.display = 'none';
                 translatedEl.style.display = '';
+                if (translatedQuote) translatedQuote.style.display = '';
+                if (originalQuote) originalQuote.style.display = 'none';
                 btn.textContent = '显示原文';
             } else {
                 translatedEl.style.display = 'none';
                 originalEl.style.display = '';
+                if (translatedQuote) translatedQuote.style.display = 'none';
+                if (originalQuote) originalQuote.style.display = '';
                 btn.textContent = '显示翻译';
             }
         });

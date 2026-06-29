@@ -243,6 +243,55 @@ body {
     color: #71767b;
 }
 
+.quote-box {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid #2f3336;
+    border-radius: 12px;
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+.quote-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.quote-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: #2f3336;
+    object-fit: cover;
+}
+
+.quote-name {
+    font-weight: 700;
+    font-size: 13px;
+    color: #e7e9ea;
+}
+
+.quote-time {
+    font-size: 13px;
+    color: #71767b;
+}
+
+.quote-content {
+    font-size: 14px;
+    line-height: 1.4;
+    color: #e7e9ea;
+}
+
+.quote-media {
+    margin-top: 8px;
+}
+
+.quote-media img {
+    width: 100%;
+    border-radius: 8px;
+}
+
 @media (max-width: 600px) {
     .header-inner {
         padding: 12px;
