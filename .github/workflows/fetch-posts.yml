@@ -2,7 +2,7 @@ name: Fetch Trump Posts
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '0 */2 * * *'
   workflow_dispatch:
 
 permissions:
@@ -28,12 +28,13 @@ jobs:
 
       - name: Fetch posts
         run: python scripts/fetch_posts.py
+        timeout-minutes: 30
 
       - name: Commit and push if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/posts.json
+          git add data/
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
