@@ -135,12 +135,10 @@
         var mediaHtml = buildMediaHtml(post.media);
         var quoteHtml = buildQuoteHtml(post.quote, index);
         var avatarUrl = (function() {
-            if (post.account.local_avatar) {
-                var bp = '';
-                if (window.location.pathname.indexOf('/trump-truthsocial/') !== -1) bp = '/trump-truthsocial';
-                return bp + '/data/' + post.account.local_avatar;
-            }
-            return post.account.avatar || '';
+            var bp = '';
+            if (window.location.pathname.indexOf('/trump-truthsocial/') !== -1) bp = '/trump-truthsocial';
+            if (post.account.local_avatar) return bp + '/data/' + post.account.local_avatar;
+            return bp + '/data/media/avatars/trump_avatar.jpg';
         })();
 
         var basePath = '';
