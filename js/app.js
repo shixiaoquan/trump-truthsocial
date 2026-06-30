@@ -106,7 +106,14 @@
     function buildQuoteHtml(quote, quoteIndex) {
         if (!quote) return '';
         var quoteContent = stripHtml(quote.content);
-        var quoteAvatar = quote.account.avatar || '';
+        var quoteAvatar = (function() {
+            if (quote.account.local_avatar) {
+                var bp = '';
+                if (window.location.pathname.indexOf('/trump-truthsocial/') !== -1) bp = '/trump-truthsocial';
+                return bp + '/data/' + quote.account.local_avatar;
+            }
+            return quote.account.avatar || '';
+        })();
         var quoteMedia = buildMediaHtml(quote.media);
 
         return '<div class="quote-box">' +
@@ -129,11 +136,20 @@
         var contentText = stripHtml(post.content);
         var mediaHtml = buildMediaHtml(post.media);
         var quoteHtml = buildQuoteHtml(post.quote, index);
-        var avatarUrl = post.account.avatar || 'https://media.truthsocial.com/accounts/avatars/000/000/001/original/avatar.png';
+        var avatarUrl = (function() {
+            if (post.account.local_avatar) {
+                var bp = '';
+                if (window.location.pathname.indexOf('/trump-truthsocial/') !== -1) bp = '/trump-truthsocial';
+                return bp + '/data/' + post.account.local_avatar;
+            }
+            return post.account.avatar || '';
+        })();
+
+        var fallbackAvatar = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect fill="%232f3336" width="48" height="48" rx="24"/><text x="24" y="30" text-anchor="middle" fill="%2371767b" font-size="20">T</text></svg>');
 
         card.innerHTML =
             '<div class="post-header">' +
-                '<img class="post-avatar" src="' + avatarUrl + '" alt="avatar">' +
+                '<img class="post-avatar" src="' + (avatarUrl || fallbackAvatar) + '" alt="avatar" onerror="this.src=\'' + fallbackAvatar + '\'">' +
                 '<div class="post-body">' +
                     '<div class="post-user-info">' +
                         '<span class="post-display-name">' + (post.account.display_name || 'Donald J. Trump') + '</span>' +

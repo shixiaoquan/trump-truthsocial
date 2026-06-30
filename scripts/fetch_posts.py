@@ -10,16 +10,17 @@ from playwright_stealth import Stealth
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
 DATA_FILE = os.path.join(DATA_DIR, 'posts.json')
+AVATARS_DIR = os.path.join(DATA_DIR, 'media', 'avatars')
 IMAGES_DIR = os.path.join(DATA_DIR, 'media', 'images')
 VIDEOS_DIR = os.path.join(DATA_DIR, 'media', 'videos')
 USERNAME = 'realDonaldTrump'
-MAX_SCROLLS = 500
-SCROLL_PAUSE = 2.0
-NO_NEW_THRESHOLD = 15
+MAX_SCROLLS = 800
+SCROLL_PAUSE = 2.5
+NO_NEW_THRESHOLD = 20
 
 
 def ensure_dirs():
-    for d in [IMAGES_DIR, VIDEOS_DIR]:
+    for d in [AVATARS_DIR, IMAGES_DIR, VIDEOS_DIR]:
         os.makedirs(d, exist_ok=True)
 
 
@@ -41,7 +42,9 @@ def download_file(url, save_path):
     if os.path.exists(save_path):
         return True
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+        })
         with urllib.request.urlopen(req, timeout=30) as resp:
             with open(save_path, 'wb') as f:
                 f.write(resp.read())
@@ -50,51 +53,75 @@ def download_file(url, save_path):
         return False
 
 
-def url_to_filename(url, prefix=''):
-    ext = os.path.splitext(url.split('?')[0])[1] or '.dat'
-    h = hashlib.md5(url.encode()).hexdigest()[:12]
-    return f'{prefix}{h}{ext}'
+def url_hash(url):
+    return hashlib.md5(url.encode()).hexdigest()[:12]
 
 
-def download_media(media_list):
-    saved = []
-    for att in media_list:
-        url = att.get('url') or att.get('preview_url', '')
-        if not url:
-            continue
+def download_avatar(url):
+    if not url:
+        return None
+    ext = os.path.splitext(url.split('?')[0])[1] or '.jpeg'
+    filename = f'avatar_{url_hash(url)}{ext}'
+    save_path = os.path.join(AVATARS_DIR, filename)
+    if download_file(url, save_path):
+        return f'media/avatars/{filename}'
+    return None
+
+
+def download_media_file(url, is_video=False):
+    if not url:
+        return None
+    ext = os.path.splitext(url.split('?')[0])[1] or ('.mp4' if is_video else '.jpg')
+    prefix = 'vid_' if is_video else 'img_'
+    filename = f'{prefix}{url_hash(url)}{ext}'
+    save_dir = VIDEOS_DIR if is_video else IMAGES_DIR
+    save_path = os.path.join(save_dir, filename)
+    if download_file(url, save_path):
+        return f'media/{"videos" if is_video else "images"}/{filename}'
+    return None
+
+
+def process_account(account):
+    avatar_url = account.get('avatar', '')
+    local_avatar = download_avatar(avatar_url)
+    return {
+        'username': account.get('username', USERNAME),
+        'display_name': account.get('display_name', ''),
+        'avatar': avatar_url,
+        'local_avatar': local_avatar,
+    }
+
+
+def process_media(attachments):
+    result = []
+    for att in attachments:
+        url = att.get('url', '')
+        preview = att.get('preview_url', '')
         is_video = att.get('type') == 'video'
-        save_dir = VIDEOS_DIR if is_video else IMAGES_DIR
-        prefix = 'vid_' if is_video else 'img_'
-        filename = url_to_filename(url, prefix)
-        save_path = os.path.join(save_dir, filename)
-        if download_file(url, save_path):
-            saved.append({
-                'type': att.get('type', 'image'),
-                'url': url,
-                'local_file': f'media/{"videos" if is_video else "images"}/{filename}',
-            })
-    return saved
+        local = download_media_file(url, is_video) or download_media_file(preview, False)
+        result.append({
+            'type': att.get('type', 'image'),
+            'url': url,
+            'preview_url': preview,
+            'local_file': local,
+            'description': att.get('description', ''),
+        })
+    return result
 
 
 def simplify_post(post):
-    account = post.get('account', {})
-    media = download_media(post.get('media_attachments', []))
+    media = process_media(post.get('media_attachments', []))
+    account = process_account(post.get('account', {}))
 
     quote = None
-    quote_data = post.get('quote')
-    if quote_data and isinstance(quote_data, dict):
-        q_account = quote_data.get('account', {})
-        q_media = download_media(quote_data.get('media_attachments', []))
+    qd = post.get('quote')
+    if qd and isinstance(qd, dict):
         quote = {
-            'id': quote_data.get('id', ''),
-            'content': quote_data.get('content', ''),
-            'created_at': quote_data.get('created_at', ''),
-            'media': q_media,
-            'account': {
-                'username': q_account.get('username', ''),
-                'display_name': q_account.get('display_name', ''),
-                'avatar': q_account.get('avatar', ''),
-            },
+            'id': qd.get('id', ''),
+            'content': qd.get('content', ''),
+            'created_at': qd.get('created_at', ''),
+            'media': process_media(qd.get('media_attachments', [])),
+            'account': process_account(qd.get('account', {})),
         }
 
     return {
@@ -106,26 +133,31 @@ def simplify_post(post):
         'favourites_count': post.get('favourites_count', 0),
         'replies_count': post.get('replies_count', 0),
         'quote': quote,
-        'account': {
-            'username': account.get('username', USERNAME),
-            'display_name': account.get('display_name', 'Donald J. Trump'),
-            'avatar': account.get('avatar', ''),
-        },
+        'account': account,
     }
 
 
 def merge_posts(existing, new_posts):
-    seen_ids = {p['id'] for p in existing}
+    seen = {p['id'] for p in existing}
     merged = list(existing)
-    for post in new_posts:
-        if post['id'] not in seen_ids:
-            merged.append(post)
-            seen_ids.add(post['id'])
+    for p in new_posts:
+        if p['id'] not in seen:
+            merged.append(p)
+            seen.add(p['id'])
     merged.sort(key=lambda p: p['created_at'], reverse=True)
     return merged
 
 
-def try_scrape():
+def wait_for_cloudflare(page, timeout=90):
+    for i in range(timeout // 2):
+        time.sleep(2)
+        title = page.title()
+        if 'Just a moment' not in title and title:
+            return True
+    return False
+
+
+def scrape_posts():
     stealth = Stealth()
     all_posts = []
     seen_ids = set()
@@ -143,93 +175,78 @@ def try_scrape():
             except Exception:
                 pass
 
-    try:
-        with sync_playwright() as p:
-            stealth.use_sync(p)
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(
-                user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                viewport={'width': 1920, 'height': 1080}
-            )
-            page = context.new_page()
-            page.on('response', on_response)
+    with sync_playwright() as p:
+        stealth.use_sync(p)
+        browser = p.chromium.launch(headless=True)
+        ctx = browser.new_context(
+            user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            viewport={'width': 1920, 'height': 1080}
+        )
+        page = ctx.new_page()
+        page.on('response', on_response)
 
-            print('Loading Truth Social...')
-            page.goto(f'https://truthsocial.com/@{USERNAME}', timeout=120000, wait_until='domcontentloaded')
+        page.goto(f'https://truthsocial.com/@{USERNAME}', timeout=120000, wait_until='domcontentloaded')
 
-            for i in range(30):
-                time.sleep(2)
-                title = page.title()
-                if 'Just a moment' not in title and title:
-                    print(f'Cloudflare passed at {i * 2}s')
-                    break
-            else:
-                print('Cloudflare challenge not passed after 60s')
-                browser.close()
-                return []
-
-            time.sleep(3)
-            print(f'Page loaded: {page.title()[:50]}')
-
-            no_new = 0
-            for i in range(MAX_SCROLLS):
-                prev_count = len(all_posts)
-                try:
-                    page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
-                except Exception:
-                    print(f'Page error at scroll {i + 1}, stopping')
-                    break
-                time.sleep(SCROLL_PAUSE)
-
-                if (i + 1) % 10 == 0:
-                    print(f'Scroll {i + 1} | Posts: {len(all_posts)}')
-
-                if len(all_posts) == prev_count:
-                    no_new += 1
-                else:
-                    no_new = 0
-
-                if no_new >= NO_NEW_THRESHOLD:
-                    print(f'No new posts for {NO_NEW_THRESHOLD} scrolls. Done.')
-                    break
-
+        if not wait_for_cloudflare(page):
+            print('Cloudflare blocked')
             browser.close()
+            return []
 
-    except Exception as e:
-        print(f'Scrape error: {e}')
+        time.sleep(3)
+        no_new = 0
+
+        for i in range(MAX_SCROLLS):
+            prev = len(all_posts)
+            try:
+                page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+            except Exception:
+                break
+            time.sleep(SCROLL_PAUSE)
+
+            if len(all_posts) > prev:
+                no_new = 0
+            else:
+                no_new += 1
+
+            if (i + 1) % 20 == 0:
+                print(f'  Scroll {i+1} | {len(all_posts)} posts')
+
+            if no_new >= NO_NEW_THRESHOLD:
+                print(f'  End of timeline reached')
+                break
+
+        browser.close()
 
     return all_posts
 
 
 def main():
     ensure_dirs()
-    print('=' * 50)
     print('Trump Truth Social Scraper')
-    print('=' * 50)
 
     existing = load_posts()
     existing_ids = {p['id'] for p in existing}
-    print(f'Existing posts: {len(existing)}')
+    print(f'Existing: {len(existing)} posts')
 
-    raw_posts = try_scrape()
-    if not raw_posts:
-        print('No posts fetched (Cloudflare may be blocking)')
+    raw = scrape_posts()
+    if not raw:
+        print('Cloudflare blocked - will retry on next GitHub Actions run')
         return
 
-    new_raw = [p for p in raw_posts if p['id'] not in existing_ids]
-    print(f'New posts: {len(new_raw)}')
+    new_raw = [p for p in raw if p['id'] not in existing_ids]
+    print(f'New: {len(new_raw)} posts')
 
     if new_raw:
         new_posts = [simplify_post(p) for p in new_raw]
         merged = merge_posts(existing, new_posts)
         save_posts(merged)
-        print(f'Total saved: {len(merged)}')
+        print(f'Saved: {len(merged)} total')
     else:
-        print('No new posts to add')
+        print('No new posts')
 
-    all_data = load_posts()
-    if all_data:
-        print(f'Range: {all_data[-1]["created_at"][:10]} ~ {all_data[0]["created_at"][:10]}')
+    data = load_posts()
+    if data:
+        print(f'Range: {data[-1]["created_at"][:10]} ~ {data[0]["created_at"][:10]}')
 
 
 if __name__ == '__main__':
