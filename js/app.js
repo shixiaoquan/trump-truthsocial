@@ -108,11 +108,9 @@
         var quoteContent = stripHtml(quote.content);
         var quoteAvatar = (function() {
             if (quote.account.local_avatar) {
-                var bp = '';
-                if (window.location.pathname.indexOf('/trump-truthsocial/') !== -1) bp = '/trump-truthsocial';
-                return bp + '/data/' + quote.account.local_avatar;
+                return basePath + '/data/' + quote.account.local_avatar;
             }
-            return quote.account.avatar || '';
+            return quote.account.avatar || fallbackAvatar;
         })();
         var quoteMedia = buildMediaHtml(quote.media);
 
@@ -145,7 +143,11 @@
             return post.account.avatar || '';
         })();
 
-        var fallbackAvatar = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect fill="%232f3336" width="48" height="48" rx="24"/><text x="24" y="30" text-anchor="middle" fill="%2371767b" font-size="20">T</text></svg>');
+        var basePath = '';
+        if (window.location.pathname.indexOf('/trump-truthsocial/') !== -1) {
+            basePath = '/trump-truthsocial';
+        }
+        var fallbackAvatar = basePath + '/data/media/avatars/default_avatar.svg';
 
         card.innerHTML =
             '<div class="post-header">' +
