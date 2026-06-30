@@ -21,10 +21,7 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        run: |
-          pip install playwright playwright-stealth
-          python -m playwright install chromium
-          python -m playwright install-deps
+        run: pip install curl_cffi requests
 
       - name: Fetch posts
         run: python scripts/fetch_posts.py
