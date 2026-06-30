@@ -296,6 +296,33 @@ body {
     border-radius: 8px;
 }
 
+.stats {
+    text-align: center;
+    padding: 12px 16px;
+    color: #71767b;
+    font-size: 13px;
+    border-bottom: 1px solid #2f3336;
+}
+
+.load-more-btn {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    margin: 0;
+    border: none;
+    border-bottom: 1px solid #2f3336;
+    background: transparent;
+    color: #1d9bf0;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.load-more-btn:hover {
+    background-color: rgba(29, 155, 240, 0.1);
+}
+
 @media (max-width: 600px) {
     .header-inner {
         padding: 12px;
