@@ -151,6 +151,10 @@ body {
     overflow: hidden;
 }
 
+.post-media:empty {
+    display: none;
+}
+
 .post-media img {
     width: 100%;
     display: block;

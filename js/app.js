@@ -93,9 +93,9 @@
                 var src = getMediaUrl(m);
                 if (!src) return;
                 if (m.type === 'video') {
-                    html += '<video controls preload="metadata"><source src="' + src + '" type="video/mp4"></video>';
+                    html += '<video controls preload="metadata" onerror="this.style.display=\'none\'"><source src="' + src + '" type="video/mp4"></video>';
                 } else {
-                    html += '<img src="' + src + '" alt="media" loading="lazy">';
+                    html += '<img src="' + src + '" alt="media" loading="lazy" onerror="this.style.display=\'none\'">';
                 }
             });
             html += '</div>';
